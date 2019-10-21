@@ -45,7 +45,7 @@ class POfD(ActorCriticRLModel):
         WARNING: this logging can take a lot of space quickly
     """
 
-    def __init__(self, policy, env, demo_dataset=None, gamma=0.99, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10,
+    def __init__(self, policy, env, demo_dataset=None, gamma=0.99, timesteps_per_batch=5000, max_kl=0.01, cg_iters=10,
                  lam=0.98, entcoeff=0.0, rewcoeff=0.1, cg_damping=1e-2, vf_stepsize=3e-4, vf_iters=3, verbose=1,
                  tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False):
         super(POfD, self).__init__(policy=policy, env=env, verbose=verbose, requires_vec_env=False,
@@ -67,7 +67,6 @@ class POfD(ActorCriticRLModel):
         # GAIL Term Params
         self.hidden_size_adversary = 100
         self.adversary_entcoeff = 1e-3
-        self.expert_dataset = None
         self.g_step = 1
         self.d_step = 1
         self.d_stepsize = 3e-4
@@ -96,6 +95,10 @@ class POfD(ActorCriticRLModel):
         self.params = None
         self.summary = None
         self.episode_reward = None
+
+        self.rews_per_iter = []
+        self.truerews_per_iter = []
+        self.imitrews_per_iter = []
 
         if _init_setup_model:
             self.setup_model()
@@ -271,7 +274,7 @@ class POfD(ActorCriticRLModel):
 
         with SetVerbosity(self.verbose), TensorboardWriter(self.graph, self.tensorboard_log, tb_log_name, new_tb_log) \
                 as writer:
-            self._setup_learn(seed)
+            self._setup_learn()
 
             with self.sess.as_default():
                 seg_gen = traj_segment_generator(self.policy_pi, self.env, self.timesteps_per_batch,
@@ -291,7 +294,7 @@ class POfD(ActorCriticRLModel):
 
                 # Initialize dataloader
                 batchsize = self.timesteps_per_batch // self.d_step
-                self.expert_dataset.init_dataloader(batchsize)
+                self.demo_dataset.init_dataloader(batchsize)
 
                 #  Stats not used for now
                 # TODO: replace with normal tb logging
@@ -440,7 +443,7 @@ class POfD(ActorCriticRLModel):
                                                                   include_final_partial_batch=False,
                                                                   batch_size=batch_size,
                                                                   shuffle=True):
-                        ob_expert, ac_expert = self.expert_dataset.get_next_batch()
+                        ob_expert, ac_expert = self.demo_dataset.get_next_batch()
                         # update running mean/std for reward_giver
                         if self.reward_giver.normalize:
                             self.reward_giver.obs_rms.update(np.concatenate((ob_batch, ob_expert), 0))
@@ -473,12 +476,17 @@ class POfD(ActorCriticRLModel):
                         logger.record_tabular("EpLenMean", np.mean(len_buffer))
                         logger.record_tabular("EpRewMean", np.mean(reward_buffer))
                         logger.record_tabular("EpTrueRewMean", np.mean(true_reward_buffer))
+                        logger.record_tabular("EpImitationRewMean", np.mean(reward_buffer) - np.mean(true_reward_buffer))
+
                     logger.record_tabular("EpThisIter", len(lens))
                     episodes_so_far += len(lens)
                     current_it_timesteps = MPI.COMM_WORLD.allreduce(seg["total_timestep"])
                     timesteps_so_far += current_it_timesteps
                     self.num_timesteps += current_it_timesteps
                     iters_so_far += 1
+                    self.rews_per_iter.append(np.mean(reward_buffer))
+                    self.truerews_per_iter.append(np.mean(true_reward_buffer))
+                    self.imitrews_per_iter.append(np.mean(reward_buffer) - np.mean(true_reward_buffer))
 
                     logger.record_tabular("EpisodesSoFar", episodes_so_far)
                     logger.record_tabular("TimestepsSoFar", self.num_timesteps)
@@ -490,9 +498,9 @@ class POfD(ActorCriticRLModel):
         return self
 
     def save(self, save_path, cloudpickle=False):
-        if self.expert_dataset is not None:
+        if self.demo_dataset is not None:
             # Exit processes to pickle the dataset
-            self.expert_dataset.prepare_pickling()
+            self.demo_dataset.prepare_pickling()
 
         data = {
             "gamma": self.gamma,
@@ -506,7 +514,7 @@ class POfD(ActorCriticRLModel):
             "vf_iters": self.vf_iters,
             "hidden_size_adversary": self.hidden_size_adversary,
             "adversary_entcoeff": self.adversary_entcoeff,
-            "expert_dataset": self.expert_dataset,
+            "demo_dataset": self.demo_dataset,
             "g_step": self.g_step,
             "d_step": self.d_step,
             "d_stepsize": self.d_stepsize,
@@ -521,4 +529,9 @@ class POfD(ActorCriticRLModel):
 
         params_to_save = self.get_parameters()
 
-        self._save_to_file(save_path, data=data, params=params_to_save, cloudpickle=cloudpickle)
+        self._save_to_file(save_path + '/model.zip', data=data, params=params_to_save, cloudpickle=cloudpickle)
+
+        np.savez(save_path+'/eprews.npz',
+                 rews=np.array(self.rews_per_iter),
+                 truerews=np.array(self.truerews_per_iter),
+                 imitrews=np.array(self.rews_per_iter)- np.array(self.rews_per_iter))

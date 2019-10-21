@@ -27,7 +27,7 @@ def train(env_id, num_timesteps, seed, demo_data=None, save_path=None):
 
         env = gym.make(env_id)
         # assert demo_data is None, "To train with POfD, demonstration trajectories are needed!"
-        import IPython;IPython.embed()
+        # import IPython;IPython.embed()
         model = POfD(MlpPolicy, env, demo_data, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10, cg_damping=0.1,
                      entcoeff=0.0, rewcoeff=0.01, gamma=0.99, lam=0.98, vf_iters=5, vf_stepsize=1e-3)
         model.learn(total_timesteps=num_timesteps)
@@ -35,18 +35,23 @@ def train(env_id, num_timesteps, seed, demo_data=None, save_path=None):
             model.save(save_path)
         env.close()
 
+import os
 
 def main():
     """
     Runs the test
     """
     parser = argparse.ArgumentParser(description="Train POfD")
-    parser.add_argument('--num_timesteps', default=10000000, type=int, help="Maximum number of timesteps")
+    parser.add_argument('--num_timesteps', default=100000, type=int, help="Maximum number of timesteps")
     parser.add_argument('--env', default='CartPole-v1')
     parser.add_argument('--seed', default=0)
     parser.add_argument('--demo_path', default='demos/demo_cartpole.npz')
-    parser.add_argument('--save_path', default='cartpole_pofd.zip')
+    parser.add_argument('--save_path', default=None)
     args = parser.parse_args()
+    args.save_path = args.env + '/' + str(args.seed)
+
+    if not os.path.exists(args.save_path):
+        os.makedirs(args.save_path)
 
     demo_dataset = ExpertDataset(args.demo_path)
 

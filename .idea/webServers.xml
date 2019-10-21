@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="36d9428a-e8b6-4a30-a2fb-7646d5488410" name="pixie.kaist.ac.kr" url="http://pixie.kaist.ac.kr">
+        <fileTransfer host="pixie.kaist.ac.kr" port="22" rootFolder="/home/syseo/Documents" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

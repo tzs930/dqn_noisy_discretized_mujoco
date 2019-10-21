@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" serverName="pixie.kaist.ac.kr">
+    <serverData>
+      <paths name="pixie.kaist.ac.kr">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/pofd" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>
