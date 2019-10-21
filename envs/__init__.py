@@ -1,6 +1,17 @@
 from gym.envs.registration import register
-​
-# Noise std = 0.1
+
+register(
+    id='CartPoleSparse-v0',
+    entry_point='envs.sparse_env:CartPoleSparseEnv',
+    max_episode_steps=500,
+)
+
+register(
+    id='MountainCarSparse-v0',
+    entry_point='envs.sparse_env:MountainCarSparseEnv',
+    max_episode_steps=200,
+)
+
 register(
     id='Walker2dSparse-v0',
     entry_point='envs.sparse_env:Walker2dSparseEnv',

@@ -1,0 +1,14 @@
+universe=Vanilla
+Executable=condor_pofd_cartpole.sh
+Arguments=$(Process) $(TMPPWD)
+getenv=True
+requirements=(Machine=="c01"||Machine=="c02"||Machine=="c03"||Machine=="c04"||Machine=="c05"||Machine=="c06"||Machine=="c07"||Machine=="c08"||Machine=="c09"||Machine=="c10"||Machine=="c11"||Machine=="c12"||Machine=="c13"||Machine=="c14"||Machine=="c15"||Machine=="c16"||Machine=="c17"||Machine=="c18"||Machine=="c19"||Machine=="c20"||Machine=="c21"||Machine=="c22"||Machine=="c23"||Machine=="c24"||Machine=="c25"||Machine=="c26"||Machine=="c27"||Machine=="c28"||Machine=="c29"||Machine=="c30"||Machine=="c31"||Machine=="c32")
+should_transfer_files=YES
+when_to_transfer_output=ON_EXIT_OR_EVICT
+
+Output=/home/syseo/condor/output/output.$(Process).out
+#Log=/home/username/condor/log/log.$(Process).out
+Error=/home/syseo/condor/error/error.$(Process).out
+RequestMemory = 15000
+RequestCpus = 1
+queue 5
