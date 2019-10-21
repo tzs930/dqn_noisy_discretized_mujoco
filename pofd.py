@@ -18,8 +18,9 @@ from stable_baselines.common.cg import conjugate_gradient
 from stable_baselines.common.policies import ActorCriticPolicy
 from stable_baselines.a2c.utils import total_episode_reward_logger
 from stable_baselines.trpo_mpi.utils import add_vtarg_and_adv, flatten_lists
-import utils.traj_segment_generator as traj_segment_generator
+from utils import traj_segment_generator
 from stable_baselines.gail.adversary import TransitionClassifier
+from stable_baselines.trpo_mpi import TRPO
 
 class POfD(ActorCriticRLModel):
     """
@@ -27,6 +28,7 @@ class POfD(ActorCriticRLModel):
     :param policy: (ActorCriticPolicy or str) The policy model to use (MlpPolicy, CnnPolicy, CnnLstmPolicy, ...)
     :param env: (Gym environment or str) The environment to learn from (if registered in Gym, can be str)
     :param gamma: (float) the discount value
+    :param demo_dataset: (ExpertDataset) the dataset manager
     :param timesteps_per_batch: (int) the number of timesteps to run per batch (horizon)
     :param max_kl: (float) the Kullback-Leibler loss threshold
     :param cg_iters: (int) the number of iterations for the conjugate gradient calculation
@@ -43,10 +45,10 @@ class POfD(ActorCriticRLModel):
         WARNING: this logging can take a lot of space quickly
     """
 
-    def __init__(self, policy, env, gamma=0.99, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10, lam=0.98,
-                 entcoeff=0.0, rewcoeff=0.1, cg_damping=1e-2, vf_stepsize=3e-4, vf_iters=3, verbose=0, tensorboard_log=None,
-                 _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False):
-        super(TRPO, self).__init__(policy=policy, env=env, verbose=verbose, requires_vec_env=False,
+    def __init__(self, policy, env, demo_dataset=None, gamma=0.99, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10,
+                 lam=0.98, entcoeff=0.0, rewcoeff=0.1, cg_damping=1e-2, vf_stepsize=3e-4, vf_iters=3, verbose=1,
+                 tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False):
+        super(POfD, self).__init__(policy=policy, env=env, verbose=verbose, requires_vec_env=False,
                                    _init_setup_model=_init_setup_model, policy_kwargs=policy_kwargs)
 
         self.timesteps_per_batch = timesteps_per_batch
@@ -98,6 +100,8 @@ class POfD(ActorCriticRLModel):
         if _init_setup_model:
             self.setup_model()
 
+        self.demo_dataset = demo_dataset
+
     def _get_pretrain_placeholders(self):
         policy = self.policy_pi
         action_ph = policy.pdtype.sample_placeholder([None])
@@ -120,7 +124,6 @@ class POfD(ActorCriticRLModel):
             self.graph = tf.Graph()
             with self.graph.as_default():
                 self.sess = tf_util.single_threaded_session(graph=self.graph)
-
 
                 self.reward_giver = TransitionClassifier(self.observation_space, self.action_space,
                                                          self.hidden_size_adversary,
@@ -262,6 +265,7 @@ class POfD(ActorCriticRLModel):
 
     def learn(self, total_timesteps, callback=None, seed=None, log_interval=100, tb_log_name="POfD",
               reset_num_timesteps=True):
+        assert self.demo_dataset is not None, "You must pass a demonstrantion dataset to POfD for training"
 
         new_tb_log = self._init_num_timesteps(reset_num_timesteps)
 
@@ -486,9 +490,10 @@ class POfD(ActorCriticRLModel):
         return self
 
     def save(self, save_path, cloudpickle=False):
-        if self.using_gail and self.expert_dataset is not None:
+        if self.expert_dataset is not None:
             # Exit processes to pickle the dataset
             self.expert_dataset.prepare_pickling()
+
         data = {
             "gamma": self.gamma,
             "timesteps_per_batch": self.timesteps_per_batch,

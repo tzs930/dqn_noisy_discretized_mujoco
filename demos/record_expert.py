@@ -175,3 +175,39 @@ def generate_expert_traj(model, save_path=None, env=None, n_timesteps=0,
     env.close()
 
     return numpy_dict
+
+import argparse
+import gym
+from learn_demo_policy import DQN_early_stopping
+from stable_baselines.deepq import DQN, MlpPolicy
+
+def main():
+    """
+    Runs the test
+    """
+    parser = argparse.ArgumentParser(description="Make Expert Demonstrations")
+    parser.add_argument('--env', default='CartPole-v1')
+    parser.add_argument('--load_path', default='cartpole_demo_rt51.zip')
+    parser.add_argument('--save_path', default='demo_cartpole.npz')
+    args = parser.parse_args()
+
+    env = gym.make(args.env)
+    model = DQN.load(args.load_path, env=env)
+    generate_expert_traj(model, save_path=args.save_path, env=env)
+
+    rews = []
+    for i in range(50):
+        done = False
+        rewsum = 0
+        obs = env.reset()
+        while not done:
+            a = model.predict(obs)[0]
+            obs, rew, done, _ = env.step(a)
+            rewsum += rew
+        rews.append(rewsum)
+
+    print("- Return Evaluation: ", np.mean(rews))
+    # import IPython; IPython.embed()
+
+if __name__ == '__main__':
+    main()
