@@ -58,7 +58,7 @@ class CartPoleSparseEnv(CartPoleEnv):
 
         return np.array(self.state), reward, done, {}
 
-class MountainCarSparseEnv(MountainCarEnv)
+class MountainCarSparseEnv(MountainCarEnv):
     def __init__(self):
         MountainCarEnv.__init__(self)
 
