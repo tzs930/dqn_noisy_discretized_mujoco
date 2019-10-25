@@ -31,6 +31,12 @@ register(
 )
 
 register(
+    id='InvertedDoublePendulumSparse-v0',
+    entry_point='envs.sparse_env:InvertedDoublePendulumSparseEnv',
+    max_episode_steps=1000,
+)
+
+register(
     id='HumanoidSparse-v0',
     entry_point='envs.sparse_env:HumanoidSparseEnv',
     max_episode_steps=1000,

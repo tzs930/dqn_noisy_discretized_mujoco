@@ -29,7 +29,6 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
         - ep_lens: (int) the length of the current episode
         - ep_true_rets: (float) the real environment reward
     """
-    # Check when using GAIL
     assert not (reward_giver is None), "You must pass a reward giver when using POfD"
 
     # Initialize state variables
@@ -41,7 +40,9 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
     current_it_len = 0  # len of current iteration
     current_ep_len = 0 # len of current episode
     cur_ep_true_ret = 0
+    cur_ep_dense_ret = 0
     ep_true_rets = []
+    ep_dense_rets = []
     ep_rets = []  # returns of completed episodes in this segment
     ep_lens = []  # Episode lengths
 
@@ -50,6 +51,7 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
     true_rewards = np.zeros(horizon, 'float32')
     imitate_rewards = np.zeros(horizon, 'float32')
     rewards = np.zeros(horizon, 'float32')
+    dense_rewards = np.zeros(horizon, 'float32')
     vpreds = np.zeros(horizon, 'float32')
     episode_starts = np.zeros(horizon, 'bool')
     dones = np.zeros(horizon, 'bool')
@@ -70,12 +72,14 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
                     "dones": dones,
                     "episode_starts": episode_starts,
                     "true_rewards": true_rewards,
+                    "dense_rewards": dense_rewards,
                     "imitate_rewards": imitate_rewards,
                     "vpred": vpreds,
                     "actions": actions,
                     "nextvpred": vpred[0] * (1 - episode_start),
                     "ep_rets": ep_rets,
                     "ep_lens": ep_lens,
+                    "ep_dense_rets": ep_dense_rets,
                     "ep_true_rets": ep_true_rets,
                     "total_timestep": current_it_len
             }
@@ -84,6 +88,7 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
             # several of these batches, then be sure to do a deepcopy
             ep_rets = []
             ep_true_rets = []
+            ep_dense_rets = []
             ep_lens = []
             # Reset current iteration length
             current_it_len = 0
@@ -107,6 +112,9 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
         true_rewards[i] = true_reward
         dones[i] = done
         episode_start = done
+        if 'original_rew' in info:
+            dense_rewards[i] = info['original_rew']
+            cur_ep_dense_ret += info['original_rew']
 
         cur_ep_ret += reward
         cur_ep_true_ret += true_reward
@@ -116,15 +124,18 @@ def traj_segment_generator(policy, env, horizon, reward_giver=None, rewcoeff=0.1
             # Retrieve unnormalized reward if using Monitor wrapper
             maybe_ep_info = info.get('episode')
             if maybe_ep_info is not None:
-                if not gail:
-                    cur_ep_ret = maybe_ep_info['r']
+                cur_ep_ret = maybe_ep_info['r']
                 cur_ep_true_ret = maybe_ep_info['r']
+
+            if 'original_rew' in info:
+                ep_dense_rets.append(cur_ep_dense_ret)
 
             ep_rets.append(cur_ep_ret)
             ep_true_rets.append(cur_ep_true_ret)
             ep_lens.append(current_ep_len)
             cur_ep_ret = 0
             cur_ep_true_ret = 0
+            cur_ep_dense_ret = 0
             current_ep_len = 0
             if not isinstance(env, VecEnv):
                 observation = env.reset()

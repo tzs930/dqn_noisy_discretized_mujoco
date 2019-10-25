@@ -47,7 +47,8 @@ class POfD(ActorCriticRLModel):
 
     def __init__(self, policy, env, demo_dataset=None, gamma=0.99, timesteps_per_batch=5000, max_kl=0.01, cg_iters=10,
                  lam=0.98, entcoeff=0.0, rewcoeff=0.1, cg_damping=1e-2, vf_stepsize=3e-4, vf_iters=3, verbose=1,
-                 tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False):
+                 tensorboard_log=None, _init_setup_model=True, policy_kwargs=None, full_tensorboard_log=False,
+                 favor_zero_reward=False):
         super(POfD, self).__init__(policy=policy, env=env, verbose=verbose, requires_vec_env=False,
                                    _init_setup_model=_init_setup_model, policy_kwargs=policy_kwargs)
 
@@ -70,6 +71,7 @@ class POfD(ActorCriticRLModel):
         self.g_step = 1
         self.d_step = 1
         self.d_stepsize = 3e-4
+        self.favor_zero_reward = favor_zero_reward
 
         self.graph = None
         self.sess = None
@@ -96,7 +98,9 @@ class POfD(ActorCriticRLModel):
         self.summary = None
         self.episode_reward = None
 
+        self.lens_per_iter = []
         self.rews_per_iter = []
+        self.denserews_per_iter = []
         self.truerews_per_iter = []
         self.imitrews_per_iter = []
 
@@ -130,7 +134,8 @@ class POfD(ActorCriticRLModel):
 
                 self.reward_giver = TransitionClassifier(self.observation_space, self.action_space,
                                                          self.hidden_size_adversary,
-                                                         entcoeff=self.adversary_entcoeff)
+                                                         entcoeff=self.adversary_entcoeff,
+                                                         favor_zero_expert_reward=self.favor_zero_reward)
 
                 # Construct network for new policy
                 self.policy_pi = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs, 1,
@@ -286,6 +291,7 @@ class POfD(ActorCriticRLModel):
                 t_start = time.time()
                 len_buffer = deque(maxlen=40)  # rolling buffer for episode lengths
                 reward_buffer = deque(maxlen=40)  # rolling buffer for episode rewards
+                dense_reward_buffer = deque(maxlen=40)
                 self.episode_reward = np.zeros((self.n_envs,))
 
                 true_reward_buffer = None
@@ -423,8 +429,8 @@ class POfD(ActorCriticRLModel):
                                     grad = self.allmean(self.compute_vflossandgrad(mbob, mbob, mbret, sess=self.sess))
                                     self.vfadam.update(grad, self.vf_stepsize)
 
-                    for (loss_name, loss_val) in zip(self.loss_names, mean_losses):
-                        logger.record_tabular(loss_name, loss_val)
+                    # for (loss_name, loss_val) in zip(self.loss_names, mean_losses):
+                    #     logger.record_tabular(loss_name, loss_val)
 
                     logger.record_tabular("explained_variance_tdlam_before",
                                           explained_variance(vpredbefore, tdlamret))
@@ -460,9 +466,9 @@ class POfD(ActorCriticRLModel):
                     logger.log(fmt_row(13, np.mean(d_losses, axis=0)))
 
                     # lr: lengths and rewards
-                    lr_local = (seg["ep_lens"], seg["ep_rets"], seg["ep_true_rets"])  # local values
+                    lr_local = (seg["ep_lens"], seg["ep_rets"], seg["ep_true_rets"], seg["ep_dense_rets"])  # local values
                     list_lr_pairs = MPI.COMM_WORLD.allgather(lr_local)  # list of tuples
-                    lens, rews, true_rets = map(flatten_lists, zip(*list_lr_pairs))
+                    lens, rews, true_rets, dense_rews = map(flatten_lists, zip(*list_lr_pairs))
                     true_reward_buffer.extend(true_rets)
                     # else:
                     #     # lr: lengths and rewards
@@ -471,11 +477,13 @@ class POfD(ActorCriticRLModel):
                     #     lens, rews = map(flatten_lists, zip(*list_lr_pairs))
                     len_buffer.extend(lens)
                     reward_buffer.extend(rews)
+                    dense_reward_buffer.extend(dense_rews)
 
                     if len(len_buffer) > 0:
                         logger.record_tabular("EpLenMean", np.mean(len_buffer))
                         logger.record_tabular("EpRewMean", np.mean(reward_buffer))
                         logger.record_tabular("EpTrueRewMean", np.mean(true_reward_buffer))
+                        logger.record_tabular("EpDenseRewMean", np.mean(dense_reward_buffer))
                         logger.record_tabular("EpImitationRewMean", np.mean(reward_buffer) - np.mean(true_reward_buffer))
 
                     logger.record_tabular("EpThisIter", len(lens))
@@ -484,7 +492,9 @@ class POfD(ActorCriticRLModel):
                     timesteps_so_far += current_it_timesteps
                     self.num_timesteps += current_it_timesteps
                     iters_so_far += 1
+                    self.lens_per_iter.append(np.mean(len_buffer))
                     self.rews_per_iter.append(np.mean(reward_buffer))
+                    self.denserews_per_iter.append(np.mean(dense_reward_buffer))
                     self.truerews_per_iter.append(np.mean(true_reward_buffer))
                     self.imitrews_per_iter.append(np.mean(reward_buffer) - np.mean(true_reward_buffer))
 
@@ -532,6 +542,8 @@ class POfD(ActorCriticRLModel):
         self._save_to_file(save_path + '/model.zip', data=data, params=params_to_save, cloudpickle=cloudpickle)
 
         np.savez(save_path+'/eprews.npz',
+                 lens=np.array(self.lens_per_iter),
                  rews=np.array(self.rews_per_iter),
                  truerews=np.array(self.truerews_per_iter),
-                 imitrews=np.array(self.rews_per_iter)- np.array(self.rews_per_iter))
+                 imitrews=np.array(self.rews_per_iter)- np.array(self.rews_per_iter),
+                 denserews=np.array(self.denserews_per_iter))

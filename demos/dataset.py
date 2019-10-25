@@ -53,7 +53,7 @@ class ExpertDataset(object):
             # to the traj_limitation trajectory
             for idx, episode_start in enumerate(episode_starts):
                 n_episodes += int(episode_start)
-                if n_episodes == (traj_limitation + 1):
+                if n_episodes == (traj_limitation):
                     traj_limit_idx = idx - 1
 
         observations = traj_data['obs'][:traj_limit_idx]
@@ -109,7 +109,7 @@ class ExpertDataset(object):
         Initialize the dataloader used by GAIL.
         :param batch_size: (int)
         """
-        indices = np.random.permutation(len(self.observations)).astype(np.int64)
+        indices = np.random.permutation(len(self.observations)).astype(np.int32)
         self.dataloader = DataLoader(indices, self.observations, self.actions, batch_size,
                                      shuffle=self.randomize, start_process=False,
                                      sequential=self.sequential_preprocessing)

@@ -1,8 +1,9 @@
+import setGPU
 import stable_baselines.trpo_mpi.trpo_mpi as trpo_mpi
 import time
 from contextlib import contextmanager
 from collections import deque
-
+import envs
 import gym
 from mpi4py import MPI
 import tensorflow as tf
@@ -18,9 +19,9 @@ from stable_baselines.common.vec_env import VecEnv
 from stable_baselines.common.schedules import LinearSchedule
 from stable_baselines.deepq.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
 from stable_baselines.deepq.policies import DQNPolicy
-from stable_baselines.deepq import DQN, MlpPolicy
+from stable_baselines.deepq import DQN
 from stable_baselines.trpo_mpi import TRPO
-# from stable_baselines.common.policies import MlpPolicy
+from stable_baselines.common.policies import MlpPolicy
 from stable_baselines.trpo_mpi.utils import traj_segment_generator, add_vtarg_and_adv, flatten_lists
 from stable_baselines.common.cg import conjugate_gradient
 
@@ -257,6 +258,11 @@ class TRPO_early_stopping(TRPO):
         self.params = None
         self.summary = None
         self.episode_reward = None
+
+        self.lens_per_iter = []
+        self.rews_per_iter = []
+        self.truerews_per_iter = []
+        self.imitrews_per_iter = []
 
         if _init_setup_model:
             self.setup_model()
@@ -498,16 +504,16 @@ def train(env_id, num_timesteps, seed, base_return, save_path):
     # model = trpo_mpi.TRPO(MlpPolicy, env, timesteps_per_batch=1024, max_kl=0.01, cg_iters=10,
     #                             cg_damping=0.1, entcoeff=0.0,
     #                             gamma=0.99, lam=0.98, vf_iters=5, vf_stepsize=1e-3)
-    # model = TRPO_early_stopping(MlpPolicy, env, base_return, timesteps_per_batch=1024,
-    #                             max_kl=0.01, cg_iters=10, cg_damping=0.1, entcoeff=0.0,
-    #                             gamma=0.99, lam=0.98, vf_iters=5, vf_stepsize=1e-3)
-    model = DQN_early_stopping(env=env,
-                               policy=MlpPolicy,
-                               base_return=base_return,
-                               learning_rate=1e-3,
-                               buffer_size=50000,
-                               exploration_fraction=0.1,
-                               exploration_final_eps=0.02)
+    model = TRPO_early_stopping(MlpPolicy, env, base_return, timesteps_per_batch=5000,
+                                max_kl=0.01, cg_iters=10, cg_damping=0.1, entcoeff=0.0,
+                                gamma=0.99, lam=0.98, vf_iters=5, vf_stepsize=1e-3)
+    # model = DQN_early_stopping(env=env,
+    #                            policy=MlpPolicy,
+    #                            base_return=base_return,
+    #                            learning_rate=1e-3,
+    #                            buffer_size=50000,
+    #                            exploration_fraction=0.1,
+    #                            exploration_final_eps=0.02)
     # import IPython; IPython.embed()
     model.learn(total_timesteps=num_timesteps)
     env.close()
@@ -516,22 +522,27 @@ def train(env_id, num_timesteps, seed, base_return, save_path):
     return model
 
 import argparse
+import os
 
 def main():
     """
     Runs the test
     """
-    parser = argparse.ArgumentParser(description="Train DQN")
-    parser.add_argument('--num_timesteps', default=10000000, type=int, help="Maximum number of timesteps")
+    parser = argparse.ArgumentParser(description="Train a demonstration policy with TRPO algorithm")
+    parser.add_argument('--num_timesteps', default=100000000, type=int, help="Maximum number of timesteps")
     parser.add_argument('--env', default='CartPole-v1')
     parser.add_argument('--seed', default=0)
     parser.add_argument('--base_return', default=-100)
-    parser.add_argument('--save_path', default='cartpole_demo.pkl')
+    parser.add_argument('--save_path', default='cartpole_demo')
     args = parser.parse_args()
-
+    args.base_return = float(args.base_return)
     # Training
+
+    if not os.path.exists(args.save_path):
+        os.makedirs(args.save_path)
+
     model = train(args.env, num_timesteps=args.num_timesteps,
-                  seed=args.seed, base_return=args.base_return,
+                  seed=args.seed, base_return=float(args.base_return),
                   save_path=args.save_path)
 
     # Testing

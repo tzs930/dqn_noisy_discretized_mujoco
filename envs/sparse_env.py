@@ -11,11 +11,14 @@ from stable_baselines import logger
 class CartPoleSparseEnv(CartPoleEnv):
     def __init__(self):
         CartPoleEnv.__init__(self)
+        self.steps_beyond_done = 0
         self.success_steps = 0
 
     def reset(self):
-        CartPoleEnv.reset(self)
+        obs = CartPoleEnv.reset(self)
+        self.steps_beyond_done = 0
         self.success_steps = 0
+        return obs
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
@@ -47,16 +50,26 @@ class CartPoleSparseEnv(CartPoleEnv):
 
         if not done:
             self.success_steps += 1
-
+            original_rew = 1
         else:
             self.success_steps = 0
+            if self.steps_beyond_done > 0:
+                original_rew = 1
+            else:
+                original_rew = 0
+
+            self.steps_beyond_done += 1
 
         if self.success_steps >= 200:
             reward = 1
         else:
             reward = 0
 
-        return np.array(self.state), reward, done, {}
+        info = {}
+        info['original_rew'] = original_rew
+
+        return np.array(self.state), reward, done, info
+
 
 class MountainCarSparseEnv(MountainCarEnv):
     def __init__(self):
@@ -79,15 +92,17 @@ class MountainCarSparseEnv(MountainCarEnv):
         else:
             reward = 0.0
 
+        info = {}
+        info['original_rew'] = -1.
+
         self.state = (position, velocity)
-        return np.array(self.state), reward, done, {}
+        return np.array(self.state), reward, done, info
 
 class InvertedDoublePendulumSparseEnv(InvertedDoublePendulumEnv):
     def __init__(self):
         InvertedDoublePendulumEnv.__init__(self)
 
     def step(self, a):
-        a = self._add_noise(a)
         ob, reward, done, info = super().step(a)
 
         sparse_rew = 1 if ob[3] > 0.89 else 0
@@ -117,7 +132,7 @@ class HopperSparseEnv(HopperEnv):
         # if done:
         #     return ob, -10., done, info
 
-        return self._handle_step_results_for_unbiasing(ob, sparse_rew, done, info)
+        return ob, sparse_rew, done, info
 
     def reset(self):
         self._base_pos = self._unit
