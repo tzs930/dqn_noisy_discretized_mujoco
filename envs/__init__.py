@@ -1,49 +1,22 @@
 from gym.envs.registration import register
 
 register(
-    id='CartPoleSparse-v0',
-    entry_point='envs.sparse_env:CartPoleSparseEnv',
-    max_episode_steps=500,
-)
-
-register(
-    id='MountainCarSparse-v0',
-    entry_point='envs.sparse_env:MountainCarSparseEnv',
-    max_episode_steps=200,
-)
-
-register(
-    id='Walker2dSparse-v0',
-    entry_point='envs.sparse_env:Walker2dSparseEnv',
+    id='NoisyDiscretizedSwimmer-v0',
+    entry_point='envs.stochastic_mujoco:SwimmerNoisyDiscretizedEnv',
     max_episode_steps=1000,
+    reward_threshold=360.0
 )
 
 register(
-    id='HopperSparse-v0',
-    entry_point='envs.sparse_env:HopperSparseEnv',
+    id='NoisyDiscretizedHopper-v0',
+    entry_point='envs.stochastic_mujoco:HopperNoisyDiscretizedEnv',
     max_episode_steps=1000,
+    reward_threshold=3800.0
 )
 
 register(
-    id='HalfCheetahSparse-v0',
-    entry_point='envs.sparse_env:HalfCheetahSparseEnv',
-    max_episode_steps=1000,
-)
-
-register(
-    id='InvertedDoublePendulumSparse-v0',
-    entry_point='envs.sparse_env:InvertedDoublePendulumSparseEnv',
-    max_episode_steps=1000,
-)
-
-register(
-    id='HumanoidSparse-v0',
-    entry_point='envs.sparse_env:HumanoidSparseEnv',
-    max_episode_steps=1000,
-)
-
-register(
-    id='ReacherSparse-v0',
-    entry_point='envs.sparse_env:ReacherSparseEnv',
-    max_episode_steps=500,
+    id='NoisyDiscretizedReacher-v0',
+    entry_point='envs.stochastic_mujoco:ReacherNoisyDiscretizedEnv',
+    max_episode_steps=50,
+    reward_threshold=-3.75
 )
