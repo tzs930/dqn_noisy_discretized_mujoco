@@ -3,7 +3,7 @@
 import setGPU
 import envs
 import os
-from deepq.dqn import DQN
+from stable_baselines.deepq.dqn import DQN
 from stable_baselines.deepq.policies import MlpPolicy
 import argparse, gym
 import numpy as np
@@ -35,7 +35,7 @@ def train(env_id, num_timesteps, seed, save_path=None, load_path=None, action_no
     
     env = gym.make(env_id) 
     env.set_action_noise(action_noise)
-    model = DQN(MlpPolicy, env)  
+    model = DQN(MlpPolicy, env, exploration_fraction=0.3, verbose=0)
 
     if load_path is not None:
         model.load(load_path)        
@@ -54,11 +54,11 @@ def main():
     Runs the test
     """
     parser = argparse.ArgumentParser(description="Train DQN")
-    parser.add_argument('--num_timesteps', default=10000001, type=int, help="Maximum number of timesteps")    
+    parser.add_argument('--num_timesteps', default=10001, type=int, help="Maximum number of timesteps")
     parser.add_argument('--env', default='NoisyDiscretizedReacher-v0')
     parser.add_argument('--pid', default=0)
-    parser.add_argument('--seed', default=0)    
-    parser.add_argument('--batchsize', default=20000)
+    parser.add_argument('--seed', default=0)
+    parser.add_argument('--batchsize', default=200)
     parser.add_argument('--action_noise', default=0.)        
     parser.add_argument('--save_path', default=None)
     parser.add_argument('--load_path', default=None)
@@ -75,8 +75,7 @@ def main():
     # args.seed = (pid % 12) % 5
 
     print(args.env, args.action_noise, args.seed)
-    args.save_path = 'results/dqn/' + args.env + '/eps' + str(args.action_noise) + '/'
-    # args.load_path = 'results/dqn/' + args.env + '/eps' + str(args.action_noise) + '/model.zip'
+    args.load_path = 'results/dqn/' + args.env + '/eps' + str(args.action_noise) + '/model.zip'
 
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)        

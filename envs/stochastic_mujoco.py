@@ -19,14 +19,14 @@ class ReacherNoisyDiscretizedEnv(ReacherEnv, NoisyEnv):
         ReacherEnv.__init__(self)        
 
     def _set_action_space(self):        
-        n_discretize = 5
+        n_discretize = 3
         n_actions = 2   
         self.action_space = gym.spaces.Discrete(n_discretize ** n_actions)
         
         return self.action_space        
         
     def step(self, discretized_a):
-        n_discretize = 5
+        n_discretize = 3
         n_actions = 2        
         action_matrix = np.array(list(product(np.linspace(-1., 1., n_discretize), repeat=n_actions)))
         a = action_matrix[discretized_a]
@@ -45,14 +45,14 @@ class SwimmerNoisyDiscretizedEnv(SwimmerEnv, NoisyEnv):
         SwimmerEnv.__init__(self)                        
 
     def _set_action_space(self):        
-        n_discretize = 5
+        n_discretize = 3
         n_actions = 2   
         self.action_space = gym.spaces.Discrete(n_discretize ** n_actions)
 
         return self.action_space        
         
     def step(self, discretized_a):
-        n_discretize = 5
+        n_discretize = 3
         n_actions = 2        
         action_matrix = np.array(list(product(np.linspace(-1., 1., n_discretize), repeat=n_actions)))
         a = action_matrix[discretized_a]
